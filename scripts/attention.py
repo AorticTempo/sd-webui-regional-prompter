@@ -1,6 +1,6 @@
 import math
 from pprint import pprint
-import ldm.modules.attention as atm
+#import ldm.modules.attention as atm
 import torch
 import torchvision
 import torchvision.transforms.functional as F
@@ -8,6 +8,17 @@ from torchvision.transforms import InterpolationMode, Resize  # Mask.
 
 TOKENSCON = 77
 TOKENS = 75
+
+from inspect import isfunction
+from torch import nn, einsum
+from einops import rearrange, repeat
+
+def exists(val):
+    return val is not None
+def default(val, d):
+    if exists(val):
+        return val
+    return d() if isfunction(d) else d
 
 def db(self,text):
     if self.debug:
@@ -34,13 +45,13 @@ def main_forward(module,x,context,mask,divide,isvanilla = False,userpp = False,t
     dim_head //= h
     scale = dim_head ** -0.5
 
-    context = atm.default(context, x)
+    context = default(context, x)
     k = module.to_k(context)
     v = module.to_v(context)
 
-    q, k, v = map(lambda t: atm.rearrange(t, 'b n (h d) -> (b h) n d', h=h), (q, k, v))
+    q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> (b h) n d', h=h), (q, k, v))
 
-    sim = atm.einsum('b i d, b j d -> b i j', q, k) * scale
+    sim = torch.einsum('b i d, b j d -> b i j', q, k) * scale
 
     if negpip:
         conds, contokens = negpip
@@ -49,10 +60,10 @@ def main_forward(module,x,context,mask,divide,isvanilla = False,userpp = False,t
                 start = (v.shape[1]//77 - len(contokens)) * 77
                 v[:,start+1:start+contoken,:] = -v[:,start+1:start+contoken,:] 
 
-    if atm.exists(mask):
-        mask = atm.rearrange(mask, 'b ... -> b (...)')
+    if exists(mask):
+        mask = rearrange(mask, 'b ... -> b (...)')
         max_neg_value = -torch.finfo(sim.dtype).max
-        mask = atm.repeat(mask, 'b j -> (b h) () j', h=h)
+        mask = repeat(mask, 'b j -> (b h) () j', h=h)
         sim.masked_fill_(~mask, max_neg_value)
 
     attn = sim.softmax(dim=-1)
@@ -85,8 +96,8 @@ def main_forward(module,x,context,mask,divide,isvanilla = False,userpp = False,t
 
                     pmasks[t] = pmasks[t] + add
 
-    out = atm.einsum('b i j, b j d -> b i d', attn, v)
-    out = atm.rearrange(out, '(b h) n d -> b n (h d)', h=h)
+    out = torch.einsum('b i j, b j d -> b i d', attn, v)
+    out = rearrange(out, '(b h) n d -> b n (h d)', h=h)
     out = module.to_out(out)
 
     return out

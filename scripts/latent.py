@@ -26,7 +26,7 @@ MAXID = 10000
 LORAID = MINID # Discriminator for repeated lora usage / across gens, presumably.
 
 try:
-    from ldm_patched.modules import model_management
+    #from ldm_patched.modules import model_management
     forge = True
 except:
     forge = False
@@ -490,8 +490,9 @@ def h_Linear_forward(self, input):
     if islora:
         import lora
         return lora.lora_forward(self, input, torch.nn.Linear_forward_before_lora)
-    elif forge:
-        return orig_Linear_forward(self, input)
+    elif forge: # I have no Idea whats going on here, changes could probably be reverted without issue
+        from backend.operations import ForgeOperations
+        return ForgeOperations.Forward(self, input)
     else:
         import networks
         if shared.opts.lora_functional:
@@ -570,7 +571,10 @@ def unloadlorafowards(p):
     except:
         pass
 
-    emb_db = sd_hijack.model_hijack.embedding_db
+    import modules.textual_inversion.textual_inversion
+    
+    emb_db = modules.textual_inversion.textual_inversion.EmbeddingDatabase()# sd_hijack.model_hijack.embedding_db
+    
     import lora
     for net in lora.loaded_loras:
         if hasattr(net,"bundle_embeddings"):
