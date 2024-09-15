@@ -198,7 +198,7 @@ class Script(modules.scripts.Script):
         self.usecom = usecom
         self.usencom = usencom
         self.batch_size = batch
-        self.isxl = True#isxl
+        self.isxl = isxl
 
         self.aratios = []
         self.bratios = []
