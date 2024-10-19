@@ -42,7 +42,7 @@ PTPRESET = modules.scripts.basedir()
 PTPRESETALT = os.path.join(paths.script_path, "scripts")
 
 try:
-    from ldm_patched.modules import model_management
+    from scripts.ldm_patched.modules import model_management
     forge = True
 except:
     forge = False
@@ -102,8 +102,8 @@ def ui_tab(mode, submode, eladd):
         with gr.Row(): # Creep: Placeholder, should probably make this invisible.
             xmode = gr.Radio(label="Mask mode", choices=submode, value="Mask", type="value", interactive=True,elem_id="RP_mask_mode" + eladd)
         with gr.Row(): # CREEP: Css magic to make the canvas bigger? I think it's in style.css: #img2maskimg -> height.
-            polymask = gr.Image(label = "Do not upload here until bugfix",elem_id="polymask" + eladd,
-                                source = "upload", mirror_webcam = False, type = "numpy", tool = "sketch")#.style(height=480)
+            polymask = gr.ImageEditor(label = "Do not upload here until bugfix",elem_id="polymask" + eladd,
+                                source = "upload", mirror_webcam = False, type = "numpy", brush = gr.Brush(colors=["#000000"]))#.style(height=480)
         with gr.Row():
             with gr.Column():
                 num = gr.Slider(label="Region", minimum=-1, maximum=MAXCOLREG, step=1, value=1,elem_id="RP_mask_region" + eladd)
@@ -113,7 +113,7 @@ def ui_tab(mode, submode, eladd):
                 # btn2 = gr.Button(value = "Display mask") # Not needed.
                 cbtn = gr.Button(value="Create mask area")
             with gr.Column():
-                showmask = gr.Image(label = "Mask", shape=(IDIM, IDIM))
+                showmask = gr.ImageEditor(label = "Mask", height = IDIM, width = IDIM)
                 # CONT: Awaiting fix for https://github.com/gradio-app/gradio/issues/4088.
                 uploadmask = gr.Image(label="Upload mask here cus gradio",source = "upload", type = "numpy")
         # btn.click(detect_polygons, inputs = [polymask,num], outputs = [polymask,num])
@@ -509,14 +509,14 @@ class Script(modules.scripts.Script):
     
             ##### calcmode 
             if "Att" in calcmode:
-                self.handle = hook_forwards(self, p.sd_model.model.diffusion_model)
+                self.handle = hook_forwards(self, p.sd_model.forge_objects.unet.model.diffusion_model)
                 if hasattr(shared.opts,"batch_cond_uncond"):
                     shared.opts.batch_cond_uncond = orig_batch_cond_uncond
                 else:                    
                     shared.batch_cond_uncond = orig_batch_cond_uncond
                 unloadlorafowards(p)
             else:
-                self.handle = hook_forwards(self, p.sd_model.model.diffusion_model,remove = True)
+                self.handle = hook_forwards(self, p.sd_model.forge_objects.unet.model.diffusion_model,remove = True)
                 setuploras(self)
                 # SBM It is vital to use local activation because callback registration is permanent,
                 # and there are multiple script instances (txt2img / img2img). 
@@ -524,7 +524,7 @@ class Script(modules.scripts.Script):
         elif "Pro" in self.mode: #Prompt mode use both calcmode
             self.ex = "Ex" in self.mode
             if not usebase : bratios = "0"
-            self.handle = hook_forwards(self, p.sd_model.model.diffusion_model)
+            self.handle = hook_forwards(self, p.sd_model.forge_objects.unet.model.diffusion_model)
             denoiserdealer(self)
 
         neighbor(self,p)                                                    #detect other extention
@@ -618,7 +618,7 @@ class Script(modules.scripts.Script):
 def unloader(self,p):
     if hasattr(self,"handle"):
         #print("unloaded")
-        hook_forwards(self, p.sd_model.model.diffusion_model, remove=True)
+        hook_forwards(self, p.sd_model.forge_objects.unet.model.diffusion_model, remove=True)
         del self.handle
 
     self.__init__()
@@ -721,7 +721,7 @@ def tokendealer(self, p):
 
     padd = 0
     
-    tokenizer = shared.sd_model.conditioner.embedders[0].tokenize_line if self.isxl else shared.sd_model.cond_stage_model.tokenize_line
+    tokenizer = shared.sd_model.conditioner.embedders[0].tokenize_line if self.isxl else shared.sd_model.text_processing_engine_l.tokenize_line
 
     for pp in ppl:
         tokens, tokensnum = tokenizer(pp)
