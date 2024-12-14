@@ -147,7 +147,7 @@ def hook_forward(self, module):
         contexts = context.clone()
 
         # SBM Matrix mode.
-        def matsepcalc(x,contexts,mask,pn,divide):
+        def matsepcalc(x, contexts, mask, pn, divide):
             db(self,f"in MatSepCalc")
             h_states = []
             xs = x.size()[1]
@@ -162,8 +162,19 @@ def hook_forward(self, module):
 
             tll = self.pt if pn else self.nt
             
+            # Add safety checks
+            if not tll:
+                return x  # Return original input if no token list
+                
             i = 0
             outb = None
+            
+            try:
+                context = contexts[:,tll[i][0] * TOKENSCON:tll[i][1] * TOKENSCON,:]
+            except IndexError:
+                print(f"Error accessing token list at index {i}")
+                print(f"Token list: {tll}")
+                return x  # Return original input on error
             if self.usebase:
                 context = contexts[:,tll[i][0] * TOKENSCON:tll[i][1] * TOKENSCON,:]
                 # SBM Controlnet sends extra conds at the end of context, apply it to all regions.
