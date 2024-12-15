@@ -1,6 +1,7 @@
 This is an attempt to port over the regional prompting webui extension over to forge. At the moment, **only attention mode is usable**.In addition, I have **only tested sdxl models**, please be aware that there is likely to be issues with other formats.  Latent mode seems to generate without any console errors, but results in fused concepts. It will probably remain this way until someone more knowledgable than me fixes/improves/rewrites that code chunk in the future. Assume any posted issues on the main extension page apply to this one.
 
-Tested working on forge commit 720b80daea9070aa7896d8ce2c4a6cf8daf927cf .
+Tested working on forge commit f4a6a08ec2ae80305c45a3fb181e8b006828de09 .
+Tested working on reforge commit 51f1a6c30e744fb2a113c17c08bc4a9b035aa3eb .
 
 # Regional Prompter
 ![top](https://github.com/hako-mikan/sd-webui-regional-prompter/blob/imgs/top2.jpg)
