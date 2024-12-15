@@ -191,6 +191,8 @@ class Script(modules.scripts.Script):
         if mode == "Columns": mode = "Horizontal"
         if mode == "Rows": mode = "Vertical"
         self.mode = mode
+        self.pt = []  # Initialize positive tokens list
+        self.nt = []  # Initialize negative tokens list
         self.calc = calc
         self.h = h
         self.w = w
@@ -703,7 +705,7 @@ def tokendealer(self, p):
     seps = "AND" if "La" in self.calc else KEYBRK
     self.seps = seps
     
-    text, _ = extra_networks.parse_prompt(p.all_prompts[0]) # SBM From update_token_counter.
+    text, _ = extra_networks.parse_prompt(p.all_prompts[0])
     text = prompt_parser.get_learned_conditioning_prompt_schedules([text],p.steps)[0][0][1]
     ppl = text.split(seps)
     ppl = [p.replace(KEYBRK_R,KEYBRK) for p in ppl]
@@ -712,7 +714,7 @@ def tokendealer(self, p):
     npl = ntext.split(seps)
     npl = [p.replace(KEYBRK_R,KEYBRK) for p in npl]
     eqb = len(ppl) == len(npl)
-    targets =[p.split(",")[-1] for p in ppl[1:]]
+    targets = [p.split(",")[-1] for p in ppl[1:]]
     pt, nt, ppt, pnt, tt = [], [], [], [], []
 
     if self.optbreak:
@@ -721,47 +723,89 @@ def tokendealer(self, p):
 
     padd = 0
     
-    tokenizer = p.sd_model.text_processing_engine_g
-    for pp in ppl:
-        tokens, tokensnum = tokenizer.tokenize_line(pp)
-        pt.append([padd, tokensnum // TOKENS + 1 + padd])
-        ppt.append(tokensnum)
-        padd = tokensnum // TOKENS + 1 + padd
+    try:
+        if hasattr(p.sd_model, 'text_processing_engine_g'):
+            tokenizer = p.sd_model.text_processing_engine_g
+        elif hasattr(p.sd_model, 'conditioner'):
+            tokenizer = p.sd_model.conditioner.embedders[0]
+        else:
+            for pp in ppl:
+                pt.append([padd, padd + 1])
+                ppt.append(75)
+                padd = padd + 1
+            
+            padd = 0
+            for np in npl:
+                nt.append([padd, padd + 1])
+                pnt.append(75)
+                padd = padd + 1
+            
+            self.pt = pt
+            self.nt = nt
+            self.pe = tt
+            self.ppt = ppt
+            self.pnt = pnt
+            self.eq = paddp == padd and eqb
+            return False
 
-    if "Pro" in self.mode:
-        for target in targets:
-            ptokens, tokensnum = tokenizer(ppl[0])
-            ttokens, _ = tokenizer(target)
+        for pp in ppl:
+            if hasattr(tokenizer, 'tokenize_line'):
+                tokens, tokensnum = tokenizer.tokenize_line(pp)
+            else:
+                tokens = tokenizer.encode(pp)
+                tokensnum = len(tokens[0]) if isinstance(tokens, list) else len(tokens)
+            
+            pt.append([padd, tokensnum // TOKENS + 1 + padd])
+            ppt.append(tokensnum)
+            padd = tokensnum // TOKENS + 1 + padd
 
-            i = 1
-            tlist = []
-            while ttokens[0].tokens[i] != 49407:
-                for (j, maintok) in enumerate(ptokens): # SBM Long prompt.
-                    if ttokens[0].tokens[i] in maintok.tokens:
-                        tlist.append(maintok.tokens.index(ttokens[0].tokens[i]) + 75 * j)
-                i += 1
-            if tlist != [] : tt.append(tlist)
+        paddp = padd
+        padd = 0
 
-    paddp = padd
-    padd = 0
-    for np in npl:
-        _, tokensnum = tokenizer.tokenize_line(np)
-        nt.append([padd, tokensnum // TOKENS + 1 + padd])
-        pnt.append(tokensnum)
-        padd = tokensnum // TOKENS + 1 + padd
+        for np in npl:
+            if hasattr(tokenizer, 'tokenize_line'):
+                _, tokensnum = tokenizer.tokenize_line(np)
+            else:
+                tokens = tokenizer.encode(np)
+                tokensnum = len(tokens[0]) if isinstance(tokens, list) else len(tokens)
+            
+            nt.append([padd, tokensnum // TOKENS + 1 + padd])
+            pnt.append(tokensnum)
+            padd = tokensnum // TOKENS + 1 + padd
 
-    self.eq = paddp == padd and eqb
+        if "Pro" in self.mode:
+            for target in targets:
+                if hasattr(tokenizer, 'tokenize_line'):
+                    ptokens, tokensnum = tokenizer(ppl[0])
+                    ttokens, _ = tokenizer(target)
+                else:
+                    ptokens = tokenizer.encode(ppl[0])
+                    ttokens = tokenizer.encode(target)
 
-    self.pt = pt
-    self.nt = nt
-    self.pe = tt
-    self.ppt = ppt
-    self.pnt = pnt
+                i = 1
+                tlist = []
+                while i < len(ttokens) and ttokens[i] != 49407:
+                    for (j, maintok) in enumerate(ptokens):
+                        if ttokens[i] in maintok:
+                            tlist.append(maintok.index(ttokens[i]) + 75 * j)
+                    i += 1
+                if tlist != []: 
+                    tt.append(tlist)
 
-    notarget = "Pro" in self.mode and tt == []
-    if notarget:
-        print("No target word is detected in Prompt mode")
-    return notarget
+        self.pt = pt
+        self.nt = nt
+        self.pe = tt
+        self.ppt = ppt
+        self.pnt = pnt
+        self.eq = paddp == padd and eqb
+
+        if not self.pt or not self.nt:
+            return True
+
+        return False
+
+    except Exception as e:
+        return True
 
 def thresholddealer(self, p ,threshold):
     if "Pro" in self.mode:
